@@ -57,6 +57,7 @@ namespace RobustNugetRestore
                     if (tries == 9)
                     {
                         LogTCError($"Could not restore nuget packages, try {tries}");
+                        LogTCStat("NugetRestoreTries", tries);
                     }
                     else
                     {
@@ -67,6 +68,7 @@ namespace RobustNugetRestore
                 else
                 {
                     Log("Success!", ConsoleColor.Green);
+                    LogTCStat("NugetRestoreTries", tries);
                     return true;
                 }
             }
@@ -160,6 +162,11 @@ namespace RobustNugetRestore
             {
                 Console.ForegroundColor = oldcolor;
             }
+        }
+
+        static void LogTCStat(string key, long value)
+        {
+            Log($"##teamcity[buildStatisticValue key='{key}' value='{value}']", ConsoleColor.Magenta);
         }
 
         static T LogTCSection<T>(string message, Func<T> func)
