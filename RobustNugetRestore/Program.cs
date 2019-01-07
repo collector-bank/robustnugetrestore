@@ -13,13 +13,13 @@ namespace RobustNugetRestore
         static int Main(string[] args)
         {
             string[] parsedArgs = args.TakeWhile(a => a != "--").ToArray();
-            if (parsedArgs.Length != 1)
+            if (parsedArgs.Length > 1)
             {
-                Log("Usage: RobustNugetRestore <solutionfile>", ConsoleColor.Red);
+                Log("Usage: RobustNugetRestore [solutionfile]", ConsoleColor.Red);
                 return 1;
             }
 
-            string solutionfile = args[0];
+            string solutionfile = parsedArgs.Length < 1 ? null : parsedArgs[0];
 
             return RestorePackages(solutionfile) ? 0 : 1;
         }
@@ -36,8 +36,18 @@ namespace RobustNugetRestore
             {
                 int exitcode = LogTCSection($"Nuget restore, try {tries}", () =>
                 {
-                    Log($"Restoring: '{solutionfile}'");
-                    var process = Process.Start(nugetexe, $"restore \"{solutionfile}\"");
+                    string processArgs;
+                    if (solutionfile == null)
+                    {
+                        Log("Restoring");
+                        processArgs = "restore";
+                    }
+                    else
+                    {
+                        Log($"Restoring: '{solutionfile}'");
+                        processArgs = $"restore \"{solutionfile}\"";
+                    }
+                    var process = Process.Start(nugetexe, processArgs);
                     process.WaitForExit();
                     return process.ExitCode;
                 });
