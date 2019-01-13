@@ -57,7 +57,7 @@ namespace RobustNugetRestore
                     if (tries == 9)
                     {
                         LogTCError($"Could not restore nuget packages, try {tries}");
-                        LogTCStat("NugetRestoreTries", tries);
+                        LogTCStat("NugetRestoreTries", tries + 1);
                     }
                     else
                     {
@@ -68,7 +68,7 @@ namespace RobustNugetRestore
                 else
                 {
                     Log("Success!", ConsoleColor.Green);
-                    LogTCStat("NugetRestoreTries", tries);
+                    LogTCStat("NugetRestoreTries", tries + 1);
                     return true;
                 }
             }
