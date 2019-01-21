@@ -13,18 +13,19 @@ namespace RobustNugetRestore
         static int Main(string[] args)
         {
             string[] parsedArgs = args.TakeWhile(a => a != "--").ToArray();
-            if (parsedArgs.Length > 1)
+            int maxtries = 100;
+            if (parsedArgs.Length > 2 || (parsedArgs.Length == 2 && !int.TryParse(parsedArgs[1], out maxtries)))
             {
-                Log("Usage: RobustNugetRestore [solutionfile]", ConsoleColor.Red);
+                Log("Usage: RobustNugetRestore [solutionfile] [tries]", ConsoleColor.Red);
                 return 1;
             }
 
             string solutionfile = parsedArgs.Length < 1 ? null : parsedArgs[0];
 
-            return RestorePackages(solutionfile) ? 0 : 1;
+            return RestorePackages(solutionfile, maxtries) ? 0 : 1;
         }
 
-        static bool RestorePackages(string solutionfile)
+        static bool RestorePackages(string solutionfile, int maxtries)
         {
             var tcvars = GetTeamcityVariables();
 
@@ -32,7 +33,7 @@ namespace RobustNugetRestore
 
             Log($"Using nuget: '{nugetexe}'");
 
-            for (var tries = 1; tries <= 10; tries++)
+            for (var tries = 1; tries <= maxtries; tries++)
             {
                 int exitcode = LogTCSection($"Nuget restore, try {tries}", () =>
                 {
@@ -54,7 +55,7 @@ namespace RobustNugetRestore
 
                 if (exitcode != 0)
                 {
-                    if (tries == 10)
+                    if (tries == maxtries)
                     {
                         LogTCError($"Could not restore nuget packages, try {tries}");
                         LogTCStat("NugetRestoreTries", tries);
