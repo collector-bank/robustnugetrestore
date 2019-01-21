@@ -32,7 +32,7 @@ namespace RobustNugetRestore
 
             Log($"Using nuget: '{nugetexe}'");
 
-            for (var tries = 0; tries < 10; tries++)
+            for (var tries = 1; tries <= 10; tries++)
             {
                 int exitcode = LogTCSection($"Nuget restore, try {tries}", () =>
                 {
@@ -54,10 +54,10 @@ namespace RobustNugetRestore
 
                 if (exitcode != 0)
                 {
-                    if (tries == 9)
+                    if (tries == 10)
                     {
                         LogTCError($"Could not restore nuget packages, try {tries}");
-                        LogTCStat("NugetRestoreTries", tries + 1);
+                        LogTCStat("NugetRestoreTries", tries);
                     }
                     else
                     {
@@ -68,7 +68,7 @@ namespace RobustNugetRestore
                 else
                 {
                     Log("Success!", ConsoleColor.Green);
-                    LogTCStat("NugetRestoreTries", tries + 1);
+                    LogTCStat("NugetRestoreTries", tries);
                     return true;
                 }
             }
