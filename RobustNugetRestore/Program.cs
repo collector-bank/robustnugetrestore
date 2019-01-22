@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text.RegularExpressions;
 using System.Threading;
 
@@ -29,7 +30,12 @@ namespace RobustNugetRestore
         {
             var tcvars = GetTeamcityVariables();
 
-            string nugetexe = Path.Combine(tcvars["teamcity.tool.NuGet.CommandLine.DEFAULT"], "tools", "NuGet.exe");
+            string nugetexe = LocateNugetBinary(tcvars);
+            if (nugetexe == null)
+            {
+                Log("nuget binary not found.");
+                return false;
+            }
 
             Log($"Using nuget: '{nugetexe}'");
 
@@ -75,6 +81,85 @@ namespace RobustNugetRestore
             }
 
             return false;
+        }
+
+        static string LocateNugetBinary(Dictionary<string, string> tcvars)
+        {
+            string nugetpath;
+
+            Log("Searching for nuget binary...");
+
+            nugetpath = LocateNugetUsingTCVars(tcvars);
+            if (nugetpath != null)
+            {
+                return nugetpath;
+            }
+
+            nugetpath = LocateNugetUsingPath();
+            if (nugetpath != null)
+            {
+                return nugetpath;
+            }
+
+            nugetpath = LocateNugetByDownloading();
+            if (nugetpath != null)
+            {
+                return nugetpath;
+            }
+
+            return null;
+        }
+
+        static string LocateNugetUsingTCVars(Dictionary<string, string> tcvars)
+        {
+            string nugetkey = "teamcity.tool.NuGet.CommandLine.DEFAULT";
+
+            if (tcvars.ContainsKey(nugetkey))
+            {
+                string path = Path.Combine(tcvars[nugetkey], "tools", "nuget.exe");
+                if (File.Exists(path))
+                {
+                    return path;
+                }
+            }
+
+            return null;
+        }
+
+        static string LocateNugetUsingPath()
+        {
+            var paths = Environment.GetEnvironmentVariable("path").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (var path in paths)
+            {
+                Log($"Searching: '{path}'");
+                if (File.Exists(Path.Combine(path, "nuget.exe")))
+                {
+                    return path;
+                }
+            }
+
+            return null;
+        }
+
+        static string LocateNugetByDownloading()
+        {
+            string localfile = "nuget.exe";
+
+            if (File.Exists(localfile) && new FileInfo(localfile).Length > 0)
+            {
+                return localfile;
+            }
+
+            string url = "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe";
+
+            Log($"Downloading: '{url}' -> '{localfile}'");
+            using (var client = new WebClient())
+            {
+                client.DownloadFile(url, localfile);
+            }
+
+            return localfile;
         }
 
         static Dictionary<string, string> GetTeamcityVariables()
