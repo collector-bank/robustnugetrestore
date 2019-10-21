@@ -13,24 +13,22 @@ namespace RobustNugetRestore
     {
         static int Main(string[] args)
         {
-            string[] parsedArgs = args.TakeWhile(a => a != "--").ToArray();
-            int maxtries = 100;
-            if (parsedArgs.Length > 2 || (parsedArgs.Length == 2 && !int.TryParse(parsedArgs[1], out maxtries)))
+            var parsedArgs = args.TakeWhile(a => a != "--").ToArray();
+            int maxretries = 100;
+            if (parsedArgs.Length > 2 || (parsedArgs.Length == 2 && !int.TryParse(parsedArgs[1], out maxretries)))
             {
-                Log("Usage: RobustNugetRestore [solutionfile] [tries]", ConsoleColor.Red);
+                Log("Usage: RobustNugetRestore [solutionfile] [maxretries]", ConsoleColor.Red);
                 return 1;
             }
 
-            string solutionfile = parsedArgs.Length < 1 ? null : parsedArgs[0];
+            var solutionfile = parsedArgs.Length < 1 ? null : parsedArgs[0];
 
-            return RestorePackages(solutionfile, maxtries) ? 0 : 1;
+            return RestorePackages(solutionfile, maxretries) ? 0 : 1;
         }
 
-        static bool RestorePackages(string solutionfile, int maxtries)
+        static bool RestorePackages(string? solutionfile, int maxretries)
         {
-            var tcvars = GetTeamcityVariables();
-
-            string nugetexe = LocateNugetBinary(tcvars);
+            var nugetexe = LocateNugetBinary();
             if (nugetexe == null)
             {
                 Log("nuget binary not found.");
@@ -39,7 +37,7 @@ namespace RobustNugetRestore
 
             Log($"Using nuget: '{nugetexe}'");
 
-            for (var tries = 1; tries <= maxtries; tries++)
+            for (var tries = 1; tries <= maxretries; tries++)
             {
                 int exitcode = LogTCSection($"Nuget restore, try {tries}", () =>
                 {
@@ -61,7 +59,7 @@ namespace RobustNugetRestore
 
                 if (exitcode != 0)
                 {
-                    if (tries == maxtries)
+                    if (tries == maxretries)
                     {
                         LogTCError($"Could not restore nuget packages, try {tries}");
                         LogTCStat("NugetRestoreTries", tries);
@@ -83,13 +81,11 @@ namespace RobustNugetRestore
             return false;
         }
 
-        static string LocateNugetBinary(Dictionary<string, string> tcvars)
+        static string? LocateNugetBinary()
         {
-            string nugetpath;
-
             Log("Searching for nuget binary...");
 
-            nugetpath = LocateNugetUsingTCVars(tcvars);
+            var nugetpath = LocateNugetUsingTCVars();
             if (nugetpath != null)
             {
                 return nugetpath;
@@ -110,9 +106,10 @@ namespace RobustNugetRestore
             return null;
         }
 
-        static string LocateNugetUsingTCVars(Dictionary<string, string> tcvars)
+        static string? LocateNugetUsingTCVars()
         {
-            string nugetkey = "teamcity.tool.NuGet.CommandLine.DEFAULT";
+            var tcvars = GetTeamcityVariables();
+            var nugetkey = "teamcity.tool.NuGet.CommandLine.DEFAULT";
 
             if (tcvars.ContainsKey(nugetkey))
             {
@@ -126,9 +123,15 @@ namespace RobustNugetRestore
             return null;
         }
 
-        static string LocateNugetUsingPath()
+        static string? LocateNugetUsingPath()
         {
-            var paths = Environment.GetEnvironmentVariable("path").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
+            var pathVariable = Environment.GetEnvironmentVariable("path");
+            if (string.IsNullOrEmpty(pathVariable))
+            {
+                LogTCWarning("Couldn't find path variable.");
+                return null;
+            }
+            var paths = pathVariable.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
 
             foreach (var path in paths)
             {
@@ -142,21 +145,27 @@ namespace RobustNugetRestore
             return null;
         }
 
-        static string LocateNugetByDownloading()
+        static string? LocateNugetByDownloading()
         {
-            string localfile = "nuget.exe";
+            var localfile = "nuget.exe";
 
             if (File.Exists(localfile) && new FileInfo(localfile).Length > 0)
             {
                 return localfile;
             }
 
-            string url = "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe";
+            var url = "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe";
 
             Log($"Downloading: '{url}' -> '{localfile}'");
-            using (var client = new WebClient())
+            using var client = new WebClient();
+            try
             {
                 client.DownloadFile(url, localfile);
+            }
+            catch (WebException ex)
+            {
+                Log($"Couldn't download '{url}': {ex.Message}");
+                return null;
             }
 
             return localfile;
@@ -166,7 +175,7 @@ namespace RobustNugetRestore
         {
             Dictionary<string, string> empty = new Dictionary<string, string>();
 
-            string buildpropfile = Environment.GetEnvironmentVariable("TEAMCITY_BUILD_PROPERTIES_FILE");
+            var buildpropfile = Environment.GetEnvironmentVariable("TEAMCITY_BUILD_PROPERTIES_FILE");
             if (string.IsNullOrEmpty(buildpropfile))
             {
                 LogTCWarning("Couldn't find Teamcity build properties file.");
@@ -179,11 +188,11 @@ namespace RobustNugetRestore
             }
 
             Log($"Reading Teamcity build properties file: '{buildpropfile}'");
-            string[] rows = File.ReadAllLines(buildpropfile);
+            var rows = File.ReadAllLines(buildpropfile);
 
             var valuesBuild = GetPropValues(rows);
 
-            string configpropfile = valuesBuild["teamcity.configuration.properties.file"];
+            var configpropfile = valuesBuild["teamcity.configuration.properties.file"];
             if (string.IsNullOrEmpty(configpropfile))
             {
                 LogTCWarning("Couldn't find Teamcity config properties file.");
