@@ -15,18 +15,19 @@ namespace RobustNugetRestore
         {
             var parsedArgs = args.TakeWhile(a => a != "--").ToArray();
             int maxretries = 100;
-            if (parsedArgs.Length > 2 || (parsedArgs.Length == 2 && !int.TryParse(parsedArgs[1], out maxretries)))
+            if (parsedArgs.Length > 3 || (parsedArgs.Length > 1 && !int.TryParse(parsedArgs[1], out maxretries)))
             {
-                Log("Usage: RobustNugetRestore [solutionfile] [maxretries]", ConsoleColor.Red);
+                Log("Usage: RobustNugetRestore [solutionfile] [maxretries] [source1,source2,...]", ConsoleColor.Red);
                 return 1;
             }
 
             var solutionfile = parsedArgs.Length < 1 ? null : parsedArgs[0];
+            var sources = parsedArgs.Length < 3 ? null : parsedArgs[2].Split(',');
 
-            return RestorePackages(solutionfile, maxretries) ? 0 : 1;
+            return RestorePackages(solutionfile, maxretries, sources) ? 0 : 1;
         }
 
-        static bool RestorePackages(string? solutionfile, int maxretries)
+        static bool RestorePackages(string? solutionfile, int maxretries, string[]? sources)
         {
             var nugetexe = LocateNugetBinary();
             if (nugetexe == null)
@@ -44,14 +45,22 @@ namespace RobustNugetRestore
                     string processArgs;
                     if (solutionfile == null)
                     {
-                        Log("Restoring");
                         processArgs = "restore";
                     }
                     else
                     {
-                        Log($"Restoring: '{solutionfile}'");
-                        processArgs = $"restore \"{solutionfile}\"";
+                        if (sources == null)
+                        {
+                            processArgs = $"restore \"{solutionfile}\"";
+                        }
+                        else
+                        {
+                            processArgs = $"restore \"{solutionfile}\" -Source {string.Join(" -Source ", sources)}";
+                        }
                     }
+
+                    Log($"Running: {nugetexe} {processArgs}");
+
                     var process = Process.Start(nugetexe, processArgs);
                     process.WaitForExit();
                     return process.ExitCode;
